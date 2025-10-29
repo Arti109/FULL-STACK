@@ -1,0 +1,70 @@
+const express = require('express');
+const app = express();
+app.use(express.json());
+
+const seats = [];
+const TOTAL_SEATS = 10;
+
+for (let i = 1; i <= TOTAL_SEATS; i++) {
+  seats.push({ id: i, status: 'available', lockedBy: null, lockTime: null });
+}
+
+const LOCK_DURATION = 60000;
+
+app.get('/', (req, res) => {
+  res.send('Concurrent Ticket Booking System with Seat Locking and Confirmation');
+});
+
+app.get('/seats', (req, res) => {
+  res.json(seats);
+});
+
+app.post('/lock/:id', (req, res) => {
+  const user = req.body.user;
+  const seat = seats.find(s => s.id === parseInt(req.params.id));
+  if (!seat) return res.status(404).json({ message: 'Seat not found' });
+  if (seat.status === 'booked') return res.status(400).json({ message: 'Seat already booked' });
+
+  const currentTime = Date.now();
+  if (seat.status === 'locked' && currentTime - seat.lockTime < LOCK_DURATION)
+    return res.status(400).json({ message: 'Seat is currently locked by another user' });
+
+  seat.status = 'locked';
+  seat.lockedBy = user;
+  seat.lockTime = currentTime;
+
+  setTimeout(() => {
+    if (seat.status === 'locked' && Date.now() - seat.lockTime >= LOCK_DURATION) {
+      seat.status = 'available';
+      seat.lockedBy = null;
+      seat.lockTime = null;
+    }
+  }, LOCK_DURATION);
+
+  res.json({ message: `Seat ${seat.id} locked for user ${user}` });
+});
+
+app.post('/confirm/:id', (req, res) => {
+  const user = req.body.user;
+  const seat = seats.find(s => s.id === parseInt(req.params.id));
+  if (!seat) return res.status(404).json({ message: 'Seat not found' });
+  if (seat.status === 'booked') return res.status(400).json({ message: 'Seat already booked' });
+  if (seat.status !== 'locked' || seat.lockedBy !== user)
+    return res.status(400).json({ message: 'You must lock the seat first or lock expired' });
+
+  if (Date.now() - seat.lockTime >= LOCK_DURATION) {
+    seat.status = 'available';
+    seat.lockedBy = null;
+    seat.lockTime = null;
+    return res.status(400).json({ message: 'Lock expired, please lock again' });
+  }
+
+  seat.status = 'booked';
+  seat.lockedBy = null;
+  seat.lockTime = null;
+  res.json({ message: `Seat ${seat.id} successfully booked by ${user}` });
+});
+
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
