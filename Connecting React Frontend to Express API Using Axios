@@ -1,0 +1,83 @@
+const express = require('express');
+const cors = require('cors');
+const app = express();
+const PORT = 5000;
+
+app.use(cors());
+
+const products = [
+  { id: 1, name: 'Laptop', price: 999 },
+  { id: 2, name: 'Smartphone', price: 699 },
+  { id: 3, name: 'Headphones', price: 199 },
+  { id: 4, name: 'Keyboard', price: 99 },
+];
+
+app.get('/api/products', (req, res) => {
+  res.json(products);
+});
+
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Product List</title>
+      <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+      <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+      <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+      <style>
+        body { font-family: Arial; margin: 40px; background: #f8f9fa; }
+        h1 { text-align: center; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
+        .card { background: white; border: 1px solid #ddd; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+      </style>
+    </head>
+    <body>
+      <div id="root"></div>
+      <script type="text/javascript">
+        const e = React.createElement;
+
+        function App() {
+          const [products, setProducts] = React.useState([]);
+          const [loading, setLoading] = React.useState(true);
+          const [error, setError] = React.useState(null);
+
+          React.useEffect(() => {
+            axios.get('/api/products')
+              .then(res => {
+                setProducts(res.data);
+                setLoading(false);
+              })
+              .catch(() => {
+                setError('Failed to fetch products');
+                setLoading(false);
+              });
+          }, []);
+
+          if (loading) return e('h2', { style: { textAlign: 'center' } }, 'Loading...');
+          if (error) return e('h2', { style: { textAlign: 'center', color: 'red' } }, error);
+
+          return e('div', null,
+            e('h1', null, 'Product List'),
+            e('div', { className: 'grid' },
+              products.map(p =>
+                e('div', { key: p.id, className: 'card' },
+                  e('h3', null, p.name),
+                  e('p', null, '$' + p.price)
+                )
+              )
+            )
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(e(App));
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+app.listen(PORT, () => console.log(\`Fullstack app running on http://localhost:\${PORT}\`));
