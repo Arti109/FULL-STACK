@@ -1,0 +1,121 @@
+const express = require('express');
+const app = express();
+const PORT = 5000;
+
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Redux Toolkit Shopping Cart</title>
+      <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+      <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+      <script src="https://unpkg.com/@reduxjs/toolkit@1.9.7/dist/redux-toolkit.umd.js"></script>
+      <script src="https://unpkg.com/react-redux@8.1.1/dist/react-redux.js"></script>
+      <style>
+        body { font-family: Arial; margin: 40px; background: #f8f9fa; }
+        h1, h2 { text-align: center; }
+        .container { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; }
+        .product, .cart-item { border: 1px solid #ddd; border-radius: 10px; background: #fff; padding: 15px; width: 200px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        button { background: #007bff; border: none; color: white; padding: 8px 12px; border-radius: 6px; cursor: pointer; margin-top: 8px; }
+        button:hover { background: #0056b3; }
+      </style>
+    </head>
+    <body>
+      <div id="root"></div>
+
+      <script type="text/javascript">
+        const { configureStore, createSlice } = window.RTK;
+        const { Provider, useDispatch, useSelector } = window.ReactRedux;
+
+        const products = [
+          { id: 1, name: 'Laptop', price: 999 },
+          { id: 2, name: 'Smartphone', price: 699 },
+          { id: 3, name: 'Headphones', price: 199 },
+          { id: 4, name: 'Keyboard', price: 99 }
+        ];
+
+        const cartSlice = createSlice({
+          name: 'cart',
+          initialState: [],
+          reducers: {
+            addToCart: (state, action) => {
+              const existing = state.find(item => item.id === action.payload.id);
+              if (existing) existing.quantity += 1;
+              else state.push({ ...action.payload, quantity: 1 });
+            },
+            removeFromCart: (state, action) => {
+              return state.filter(item => item.id !== action.payload);
+            },
+            updateQuantity: (state, action) => {
+              const item = state.find(i => i.id === action.payload.id);
+              if (item) item.quantity = action.payload.quantity;
+            }
+          }
+        });
+
+        const store = configureStore({ reducer: { cart: cartSlice.reducer } });
+        const { addToCart, removeFromCart, updateQuantity } = cartSlice.actions;
+
+        function ProductList() {
+          const dispatch = useDispatch();
+          return React.createElement('div', { className: 'container' },
+            products.map(p =>
+              React.createElement('div', { key: p.id, className: 'product' },
+                React.createElement('h3', null, p.name),
+                React.createElement('p', null, '$' + p.price),
+                React.createElement('button', { onClick: () => dispatch(addToCart(p)) }, 'Add to Cart')
+              )
+            )
+          );
+        }
+
+        function Cart() {
+          const cart = useSelector(state => state.cart);
+          const dispatch = useDispatch();
+
+          if (cart.length === 0)
+            return React.createElement('h3', { style: { textAlign: 'center', marginTop: '20px' } }, 'Cart is empty');
+
+          return React.createElement('div', null,
+            React.createElement('h2', null, 'Shopping Cart'),
+            React.createElement('div', { className: 'container' },
+              cart.map(item =>
+                React.createElement('div', { key: item.id, className: 'cart-item' },
+                  React.createElement('h4', null, item.name),
+                  React.createElement('p', null, 'Price: $' + item.price),
+                  React.createElement('p', null, 'Quantity: ',
+                    React.createElement('input', {
+                      type: 'number',
+                      value: item.quantity,
+                      min: 1,
+                      style: { width: '60px' },
+                      onChange: e => dispatch(updateQuantity({ id: item.id, quantity: Number(e.target.value) }))
+                    })
+                  ),
+                  React.createElement('button', { onClick: () => dispatch(removeFromCart(item.id)) }, 'Remove')
+                )
+              )
+            )
+          );
+        }
+
+        function App() {
+          return React.createElement('div', null,
+            React.createElement('h1', null, 'Redux Toolkit Shopping Cart'),
+            React.createElement(ProductList),
+            React.createElement(Cart)
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(Provider, { store }, React.createElement(App)));
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+app.listen(PORT, () => console.log(\`Fullstack Redux app running on http://localhost:\${PORT}\`));
