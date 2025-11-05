@@ -1,0 +1,202 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+const PORT = process.env.PORT || 5000;
+let messages = [];
+
+app.get('/', (req, res) => {
+  res.send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Realtime Chat (Socket.io + React)</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;background:#f4f7fb;margin:0;padding:20px}
+  .app{max-width:900px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,0.06);overflow:hidden}
+  .header{background:#4f46e5;color:#fff;padding:16px 20px}
+  .header h1{margin:0;font-size:20px}
+  .main{display:flex;gap:20px;padding:20px}
+  .left{flex:1;display:flex;flex-direction:column;gap:12px}
+  .messages{height:400px;overflow:auto;border:1px solid #e6e9ef;border-radius:8px;padding:12px;background:#fbfcff}
+  .msg{margin-bottom:10px;padding:8px;border-radius:6px}
+  .meta{font-size:12px;color:#666;margin-bottom:6px}
+  .own{background:#eef2ff}
+  .other{background:#f3f4f6}
+  .controls{display:flex;gap:8px}
+  input[type="text"]{flex:1;padding:8px;border:1px solid #d0d5dd;border-radius:6px}
+  button{padding:8px 12px;border-radius:6px;border:0;background:#4f46e5;color:#fff;cursor:pointer}
+  .right{width:260px;border-left:1px solid #eef1f6;padding-left:20px}
+  .userlist{list-style:none;padding:0;margin:0}
+  .userlist li{padding:6px 0;border-bottom:1px solid #f1f3f6}
+  .small{font-size:13px;color:#333}
+  .muted{color:#777;font-size:13px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/javascript">
+const e = React.createElement;
+const { useState, useEffect, useRef } = React;
+
+function App(){
+  const [socket, setSocket] = useState(null);
+  const [connectedUsers, setConnectedUsers] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [name, setName] = useState('');
+  const [joined, setJoined] = useState(false);
+  const [text, setText] = useState('');
+  const messagesRef = useRef();
+
+  useEffect(() => {
+    const s = io();
+    setSocket(s);
+
+    s.on('history', (history) => {
+      setMessages(history);
+      scrollToBottom();
+    });
+
+    s.on('message', (msg) => {
+      setMessages(prev => { const arr = prev.concat(msg); return arr; });
+      scrollToBottom();
+    });
+
+    s.on('user-list', (list) => {
+      setConnectedUsers(list);
+    });
+
+    s.on('user-joined', (who) => {
+      setMessages(prev => prev.concat({ system: true, text: who + ' joined', time: Date.now() }));
+      scrollToBottom();
+    });
+
+    s.on('user-left', (who) => {
+      setMessages(prev => prev.concat({ system: true, text: who + ' left', time: Date.now() }));
+      scrollToBottom();
+    });
+
+    return () => { s.disconnect(); };
+  }, []);
+
+  function joinChat(){
+    if(!socket) return;
+    const trimmed = name.trim();
+    if(!trimmed) return alert('Enter your name');
+    socket.emit('join', trimmed);
+    setJoined(true);
+  }
+
+  function sendMessage(){
+    if(!socket) return;
+    const txt = text.trim();
+    if(!txt) return;
+    socket.emit('message', { text: txt });
+    setText('');
+  }
+
+  function handleKey(e){
+    if(e.key === 'Enter') sendMessage();
+  }
+
+  function scrollToBottom(){
+    setTimeout(() => {
+      const el = messagesRef.current;
+      if(el) el.scrollTop = el.scrollHeight;
+    }, 50);
+  }
+
+  return e('div', { className: 'app' },
+    e('div', { className: 'header' }, e('h1', null, 'Realtime Chat')),
+    e('div', { className: 'main' },
+      e('div', { className: 'left' },
+        !joined && e('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+          e('input', {
+            type: 'text',
+            placeholder: 'Enter your name',
+            value: name,
+            onChange: (ev) => setName(ev.target.value)
+          }),
+          e('button', { onClick: joinChat }, 'Join')
+        ),
+        joined && e('div', { className: 'muted' }, 'Connected as: ', e('strong', null, name)),
+        e('div', { className: 'messages', ref: messagesRef },
+          messages.map((m, i) => {
+            if(m.system){
+              return e('div', { key: 's'+i, className: 'msg muted' }, '[' + new Date(m.time).toLocaleTimeString() + '] ' + m.text);
+            }
+            const own = m.name === name;
+            return e('div', { key: i, className: 'msg ' + (own ? 'own' : 'other') },
+              e('div', { className: 'meta' }, m.name + ' • ' + new Date(m.time).toLocaleTimeString()),
+              e('div', null, m.text)
+            );
+          })
+        ),
+        e('div', { className: 'controls' },
+          e('input', {
+            type: 'text',
+            placeholder: joined ? 'Type a message and press Enter or Send' : 'Join the chat to send messages',
+            value: text,
+            onChange: (ev) => setText(ev.target.value),
+            onKeyDown: handleKey,
+            disabled: !joined
+          }),
+          e('button', { onClick: sendMessage, disabled: !joined }, 'Send')
+        )
+      ),
+      e('div', { className: 'right' },
+        e('h3', null, 'Users'),
+        e('ul', { className: 'userlist' },
+          connectedUsers.map((u, i) => e('li', { key: i }, e('span', { className: 'small' }, u)))
+        ),
+        e('div', { style: { marginTop: '16px' } },
+          e('div', { className: 'small muted' }, 'Open this page in multiple windows to test real-time updates.')
+        )
+      )
+    )
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(e(App));
+</script>
+</body>
+</html>`);
+});
+
+io.on('connection', (socket) => {
+  socket.on('join', (name) => {
+    socket.username = name || 'Anonymous';
+    const users = Array.from(io.of('/').sockets.values()).map(s => s.username).filter(Boolean);
+    io.emit('user-list', users);
+    socket.emit('history', messages);
+    socket.broadcast.emit('user-joined', socket.username);
+  });
+
+  socket.on('message', (data) => {
+    const msg = {
+      name: socket.username || 'Anonymous',
+      text: String(data.text || ''),
+      time: Date.now()
+    };
+    messages.push(msg);
+    if (messages.length > 500) messages.shift();
+    io.emit('message', msg);
+  });
+
+  socket.on('disconnect', () => {
+    const who = socket.username || 'Anonymous';
+    const users = Array.from(io.of('/').sockets.values()).map(s => s.username).filter(Boolean);
+    io.emit('user-list', users);
+    socket.broadcast.emit('user-left', who);
+  });
+});
+
+server.listen(PORT, () => console.log(\`Realtime chat server running on http://localhost:\${PORT}\`));
